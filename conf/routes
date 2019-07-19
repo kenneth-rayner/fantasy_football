@@ -9,4 +9,10 @@ GET     /                           controllers.HomeController.index
 # Map static resources from the /public folder to the /assets URL path
 GET     /assets/*file               controllers.Assets.versioned(path="/public", file: Asset)
 
-GET    /player/:id                  controllers.PlayerManagerController.getPlayer(id)
+GET     /player/:name               controllers.PlayerManagerController.getPlayer(name:String)
+
+POST    /postPlayer                 controllers.PlayerManagerController.postNewPlayer
+POST    /deletePlayer               controllers.PlayerManagerController.deletePlayer
+#POST    /deletePlayer2/:name        controllers.PlayerManagerController.deletePlayer2(name:String)
+
+POST    /removedPerson/:name         controllers.PlayerManagerController.deletePlayer2(name:String)
