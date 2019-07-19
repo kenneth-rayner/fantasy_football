@@ -5,8 +5,6 @@ import models.Player
 import play.api.libs.json.Json
 import play.api.mvc.{AbstractController, AnyContent, ControllerComponents, Request}
 import play.modules.reactivemongo.ReactiveMongoApi
-import reactivemongo.api.collections.bson.BSONCollection
-import reactivemongo.bson.BSONDocument
 import reactivemongo.play.json.ImplicitBSONHandlers.JsObjectDocumentWriter
 import reactivemongo.play.json.collection._
 
@@ -44,16 +42,33 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
     implicit request: Request[Player] =>
       collection.flatMap(_.delete.one(request.body).map(_ => Ok))
   }
-  private def deleteByName(name: String) = {
 
-    implicit request: Request[Player] =>
-      collection.flatMap(_.delete.one(request.body.name.equals(name)).map(_ => Ok))
-
+  def deletePlayerByName(name: String) = Action.async {
+    implicit request =>
+      collection.flatMap(_.delete.one(Json.obj("name" -> name)).map(_ => Ok("Success")))
   }
 
-  def delete(name:String)= {
-    implicit request: Request[Player] =>
-      collection.flatMap(_.delete.one(request.body.name == name).map(_ => Ok))
+  def updatePlayerByName(name: String) = Action.async {
+    implicit request =>
+      collection.flatMap(_.update.one(
+        q = Json.obj("name" -> name),
+        u = Json.obj("name" -> "Ken")
+      ).map(_ => Ok("Success")))
   }
 
+  def update(name: String, newName: String) = Action.async {
+    implicit request =>
+
+      get(name).map(_.get).map(
+        result =>
+          collection.flatMap(_.update.one(
+            q = Json.obj("name" -> name),
+            u = Json.obj(
+              "name" -> newName,
+              "id" -> result.id,
+              "value" -> result.value
+            )
+          ))
+      ).map(_ => Ok("Success"))
+  }
 }
