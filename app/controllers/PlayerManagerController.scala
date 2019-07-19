@@ -72,19 +72,52 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
       ).map(_ => Ok("Success"))
 
   }
-      def updateValue(name: String, newValue: Int) = Action.async {
-        implicit request =>
 
-          get(name).map(_.get).map(
-            result =>
-              collection.flatMap(_.update.one(
-                q = Json.obj("name" -> name),
-                u = Json.obj(
-                  "name" -> result.name,
-                  "id" -> result.id,
-                  "value" -> newValue
-                )
-              ))
-          ).map(_ => Ok("Success"))
-      }
+  def updateValue(name: String, newValue: Int) = Action.async {
+    implicit request =>
+
+      get(name).map(_.get).map(
+        result =>
+          collection.flatMap(_.update.one(
+            q = Json.obj("name" -> name),
+            u = Json.obj(
+              "name" -> result.name,
+              "id" -> result.id,
+              "value" -> newValue
+            )
+          ))
+      ).map(_ => Ok("Success"))
   }
+
+  def increaseValue(name: String, increase: Int) = Action.async {
+    implicit request =>
+
+      get(name).map(_.get).map(
+        result =>
+          collection.flatMap(_.update.one(
+            q = Json.obj("name" -> name),
+            u = Json.obj(
+              "name" -> result.name,
+              "id" -> result.id,
+              "value" -> (result.value + increase)
+            )
+          ))
+      ).map(_ => Ok("Success"))
+  }
+
+  def decreaseValue(name: String, decrease: Int) = Action.async {
+    implicit request =>
+
+      get(name).map(_.get).map(
+        result =>
+          collection.flatMap(_.update.one(
+            q = Json.obj("name" -> name),
+            u = Json.obj(
+              "name" -> result.name,
+              "id" -> result.id,
+              "value" -> (result.value - decrease)
+            )
+          ))
+      ).map(_ => Ok("Success"))
+  }
+}
