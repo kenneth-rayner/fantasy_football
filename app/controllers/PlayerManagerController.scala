@@ -56,7 +56,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
       ).map(_ => Ok("Success")))
   }
 
-  def update(name: String, newName: String) = Action.async {
+  def updateName(name: String, newName: String) = Action.async {
     implicit request =>
 
       get(name).map(_.get).map(
@@ -70,5 +70,21 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
             )
           ))
       ).map(_ => Ok("Success"))
+
   }
-}
+      def updateValue(name: String, newValue: Int) = Action.async {
+        implicit request =>
+
+          get(name).map(_.get).map(
+            result =>
+              collection.flatMap(_.update.one(
+                q = Json.obj("name" -> name),
+                u = Json.obj(
+                  "name" -> result.name,
+                  "id" -> result.id,
+                  "value" -> newValue
+                )
+              ))
+          ).map(_ => Ok("Success"))
+      }
+  }

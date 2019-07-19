@@ -15,4 +15,5 @@ POST    /postPlayer                       controllers.PlayerManagerController.po
 POST    /deletePlayer                     controllers.PlayerManagerController.deletePlayer
 POST    /deletePlayerByName/:name         controllers.PlayerManagerController.deletePlayerByName(name:String)
 POST    /updatePlayerByName/:name         controllers.PlayerManagerController.updatePlayerByName(name:String)
-POST    /updateNameOnly/:name/:newName    controllers.PlayerManagerController.update(name:String,newName:String)
+POST    /updateName/:name/:newName        controllers.PlayerManagerController.updateName(name:String,newName:String)
+POST    /updateValue/:name/:newValue      controllers.PlayerManagerController.updateValue(name:String,newValue:Int)
