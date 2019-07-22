@@ -7,15 +7,17 @@
 GET     /                           controllers.HomeController.index
 
 # Map static resources from the /public folder to the /assets URL path
-GET     /assets/*file                     controllers.Assets.versioned(path="/public", file: Asset)
+GET     /assets/*file                       controllers.Assets.versioned(path="/public", file: Asset)
 
-GET     /player/:name                     controllers.PlayerManagerController.getPlayer(name:String)
+GET     /getPlayerById/:_id                 controllers.PlayerManagerController.getPlayerById(_id:String)
 
-POST    /postPlayer                       controllers.PlayerManagerController.postNewPlayer
-POST    /deletePlayer                     controllers.PlayerManagerController.deletePlayer
-POST    /deletePlayerByName/:name         controllers.PlayerManagerController.deletePlayerByName(name:String)
-POST    /updatePlayerByName/:name         controllers.PlayerManagerController.updatePlayerByName(name:String)
-POST    /updateName/:name/:newName        controllers.PlayerManagerController.updateName(name:String,newName:String)
-POST    /updateValue/:name/:newValue      controllers.PlayerManagerController.updateValue(name:String,newValue:Int)
-POST    /addValue/:name/:increase         controllers.PlayerManagerController.increaseValue(name:String, increase:Int)
-POST    /decreaseValue/:name/:decrease    controllers.PlayerManagerController.decreaseValue(name:String, decrease:Int)
+POST    /postPlayer                         controllers.PlayerManagerController.postNewPlayer
+
+POST    /deletePlayerBody                   controllers.PlayerManagerController.deletePlayerByBody
+POST    /deletePlayerById/:_id              controllers.PlayerManagerController.deletePlayerById(_id:String)
+POST    /deletePlayerByName/:name           controllers.PlayerManagerController.deletePlayerByName(name:String)
+
+POST    /updatePlayerName/:_id/:name        controllers.PlayerManagerController.updatePlayerName(_id:String,name:String)
+POST    /updateValue/:id/:newValue          controllers.PlayerManagerController.updateValue(id:String,newValue:Int)
+POST    /increaseValue/:id/:increase        controllers.PlayerManagerController.increaseValue(id:String, increase:Int)
+POST    /decreaseValue/:id/:decrease        controllers.PlayerManagerController.decreaseValue(id:String, decrease:Int)
