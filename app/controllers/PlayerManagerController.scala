@@ -64,7 +64,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
             q = Json.obj("_id" -> _id),
             u = Json.obj(
               "name" -> newName,
-              "id" -> result._id,
+              "_id" -> result._id,
               "value" -> result.value
             )
           ))
@@ -114,7 +114,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
             q = Json.obj("_id" -> _id),
             u = Json.obj(
               "name" -> result.name,
-              "id" -> result._id,
+              "_id" -> result._id,
               "value" -> (result.value - decrease)
             )
 
