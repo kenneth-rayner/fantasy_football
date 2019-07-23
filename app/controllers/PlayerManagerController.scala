@@ -2,7 +2,7 @@ package controllers
 
 import javax.inject.Inject
 import models.Player
-import play.api.libs.json.{JsObject, JsResultException, Json}
+import play.api.libs.json.{JsObject, JsResultException, JsString, Json}
 import play.api.mvc._
 import play.modules.reactivemongo.ReactiveMongoApi
 import reactivemongo.api.WriteConcern
@@ -12,6 +12,7 @@ import reactivemongo.play.json.ImplicitBSONHandlers.JsObjectDocumentWriter
 import reactivemongo.play.json.collection._
 
 import scala.concurrent.{ExecutionContext, Future}
+
 
 
 class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: ReactiveMongoApi)
@@ -46,16 +47,18 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
   def getPlayerById(_id: String) = Action.async {
     implicit request: Request[AnyContent] =>
 
-      get(_id).map {
-        case Some(player) => Ok(Json.toJson(player))
-        case None => NotFound("Player not found!")
-      } recoverWith {
-        case _: JsResultException =>
-          Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
-        case e =>
-          Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
+      val getHeaders: Option[Seq[String]] = request.headers.toMap.get("security-key")
+
+        get(_id).map {
+          case Some(player) => Ok(Json.toJson(player))
+          case None => NotFound(s"$getHeaders")
+        } recoverWith {
+          case _: JsResultException =>
+            Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
+          case e =>
+            Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
+        }
       }
-  }
 
   //GET
   def getBalanceById(_id: String) = Action.async {
@@ -70,6 +73,21 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
         case e =>
           Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
       }
+  }
+
+  def postSecurityNumber(_id:String, securityNumber:String) = Action.async {
+    val frank = Seq("_id" -> _id, "security-number" -> securityNumber)
+      collection.flatMap(
+        _.find(
+    Json.obj("$and" -> Json.toJsFieldJsValueWrapper(frank)),
+          None
+        ).one[String].map {
+          _=> Ok("yodel")
+        }
+      ) recoverWith {
+        case e => Future.successful(BadRequest(s"poops--> $e"))
+      }
+
   }
 
   //POST

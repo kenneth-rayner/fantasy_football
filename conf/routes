@@ -21,3 +21,5 @@ POST    /updatePlayerName/:_id/:name        controllers.PlayerManagerController.
 POST    /increaseValue/:id/:increase        controllers.PlayerManagerController.increaseValue(id:String, increase:Int)
 POST    /decreaseValue/:id/:value           controllers.PlayerManagerController.decreaseValue(id:String, value:Int)
 
+POST    /postSecurityNumber/:_id/:securityNumber controllers.PlayerManagerController.postSecurityNumber(_id:String,securityNumber:String)
+
