@@ -1,12 +1,15 @@
 package controllers
 
+import com.sun.media.sound.InvalidDataException
 import javax.inject.Inject
 import models.Player
-import play.api.libs.json.Json
-import play.api.mvc.{AbstractController, Action, AnyContent, ControllerComponents, Request}
+import play.api.data.validation.Invalid
+import play.api.libs.json.{JsObject, JsResultException, JsValue, Json, JsonValidationError}
+import play.api.mvc._
 import play.modules.reactivemongo.ReactiveMongoApi
-import reactivemongo.api.collections.bson.BSONCollection
-import reactivemongo.bson.BSONDocument
+import reactivemongo.api.WriteConcern
+import reactivemongo.api.commands.FindAndModifyCommand
+import reactivemongo.core.errors.DatabaseException
 import reactivemongo.play.json.ImplicitBSONHandlers.JsObjectDocumentWriter
 import reactivemongo.play.json.collection._
 
@@ -15,6 +18,22 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: ReactiveMongoApi)
                                        (implicit ec: ExecutionContext) extends AbstractController(cc) {
+
+  private def findAndUpdate(collection: JSONCollection, selection: JsObject, modifier: JsObject): Future[FindAndModifyCommand.Result[collection.pack.type]] = {
+    collection.findAndUpdate(
+      selector = selection,
+      update = modifier,
+      fetchNewObject = true,
+      upsert = false,
+      sort = None,
+      fields = None,
+      bypassDocumentValidation = false,
+      writeConcern = WriteConcern.Default,
+      maxTime = None,
+      collation = None,
+      arrayFilters = Seq.empty
+    )
+  }
 
   private def collection: Future[JSONCollection] =
     mongo.database.map(_.collection[JSONCollection]("players"))
@@ -25,100 +44,126 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
       None
     ).one[Player])
 
-
+  //GET
   def getPlayerById(_id: String) = Action.async {
     implicit request: Request[AnyContent] =>
 
-      get(_id).map(
-        _.map(player => Ok(Json.toJson(player))).getOrElse(NotFound)
-      )
+      get(_id).map {
+        case Some(player) => Ok(Json.toJson(player))
+        case None => NotFound("Player not found!")
+      } recoverWith {
+        case _: JsResultException =>
+          Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
+        case e =>
+          Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
+      }
   }
 
-  def postNewPlayer = Action.async(parse.json[Player]) {
-    implicit request: Request[Player] =>
+  //GET
+  def getBalanceById(_id: String) = Action.async {
+    implicit request: Request[AnyContent] =>
 
-      collection.flatMap(_.insert.one(request.body).map(_ => Ok))
+      get(_id).map {
+        case Some(player) => Ok(Json.toJson(player.value))
+        case None => NotFound("Player not found!")
+      } recoverWith {
+        case _: JsResultException =>
+          Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
+        case e =>
+          Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
+      }
   }
 
-  def deletePlayerByBody = Action.async(parse.json[Player]) {
-    implicit request: Request[Player] =>
-      collection.flatMap(_.delete.one(request.body).map(_ => Ok))
+  //POST
+  def addNewPlayer = Action.async(parse.json) {
+    implicit request =>
+      collection.flatMap(
+        _.insert.one(request.body.as[Player]).map(
+          _ => Ok("Success")
+        )
+      ) recoverWith {
+        case _: JsResultException =>
+          Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
+        case _: DatabaseException=>
+          Future.successful(BadRequest(s"Could not parse Json to Player model. Duplicate key error!"))
+        case e =>
+          Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
+      }
   }
 
+  //POST
   def deletePlayerById(id: String) = Action.async {
     implicit request =>
       collection.flatMap(_.delete.one(Json.obj("_id" -> id)).map(_ => Ok("Success")))
   }
 
-  def deletePlayerByName(name: String) = Action.async {
-    implicit request =>
-      collection.flatMap(_.delete.one(Json.obj("name" -> name)).map(_ => Ok("Success")))
+  //POST
+  def updatePlayerName(_id: String, newName: String): Action[AnyContent] = Action.async {
+    collection.flatMap {
+      result =>
+
+        val selector: JsObject = Json.obj("_id" -> _id)
+        val modifier: JsObject = Json.obj("$set" -> Json.obj("name" -> newName))
+        val newUpdate: Future[Option[Player]] = findAndUpdate(result, selector, modifier).map(_.result[Player])
+
+        newUpdate.map {
+          case Some(player) =>
+            Ok(s"Success! updated ${player._id}'s name to ${player.name}")
+          case _ =>
+            NotFound("No player with that id exists in records")
+        }
+    }
   }
 
-  def updatePlayerName(_id: String, newName: String) = Action.async {
-    implicit request =>
-
-      get(_id).map(_.get).map(
-        result =>
+  //POST
+  def decreaseValue(_id: String, amount: Int): Action[AnyContent] = Action.async {
+    get(_id).flatMap {
+      case Some(player) =>
+        if (player.value < amount)
+          Future.successful(Ok("balance not high enough"))
+        else {
           collection.flatMap(_.update.one(
-            q = Json.obj("_id" -> _id),
-            u = Json.obj(
-              "name" -> newName,
-              "_id" -> result._id,
-              "value" -> result.value
-            )
-          ))
-      ).map(_ => Ok("Success"))
-
+            Json.obj("_id" -> _id),
+            Json.obj("_id" -> player._id, "name" -> player.name, "value" -> (player.value - amount)))
+          ).map {
+            _ => Ok("Document updated!")
+          }.recoverWith {
+            case e =>
+              Future.successful(BadRequest(s"Something has gone wrong on update! Failed with exception: $e"))
+          }
+        }
+      case None => Future.successful(NotFound("Player not found!"))
+    } recoverWith {
+      case _: JsResultException =>
+        Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
+      case e =>
+        Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
+    }
   }
 
-  def updateValue(_id: String, newValue: Int) = Action.async {
-    implicit request =>
-
-      get(_id).map(_.get).map(
-        result =>
+  //POST
+  def increaseValue(_id: String, amount: Int): Action[AnyContent] = Action.async {
+    get(_id).flatMap {
+      case Some(player) =>
+        if (amount < 0)
+          Future.successful(Ok("Minimum increase must be greater than zero"))
+        else {
           collection.flatMap(_.update.one(
-            q = Json.obj("_id" -> _id),
-            u = Json.obj(
-              "name" -> result.name,
-              "_id" -> result._id,
-              "value" -> newValue
-            )
-          ))
-      ).map(_ => Ok("Success"))
-  }
-
-  def increaseValue(_id: String, increase: Int) = Action.async {
-    implicit request =>
-
-      get(_id).map(_.get).map(
-        result =>
-          collection.flatMap(_.update.one(
-            q = Json.obj("_id" -> _id),
-            u = Json.obj(
-              "name" -> result.name,
-              "_id" -> result._id,
-              "value" -> (result.value + increase)
-            )
-          ))
-      ).map(_ => Ok("Success"))
-  }
-
-  def decreaseValue(_id: String, decrease: Int) = Action.async {
-    implicit request =>
-
-      get(_id).map(_.get).map(
-        result =>
-          collection.flatMap(_.update.one(
-
-            q = Json.obj("_id" -> _id),
-            u = Json.obj(
-              "name" -> result.name,
-              "_id" -> result._id,
-              "value" -> (result.value - decrease)
-            )
-
-          ))
-      ).map(_ => Ok("Success"))
+            Json.obj("_id" -> _id),
+            Json.obj("_id" -> player._id, "name" -> player.name, "value" -> (player.value + amount)))
+          ).map {
+            _ => Ok("Document updated!")
+          }.recoverWith {
+            case e =>
+              Future.successful(BadRequest(s"Something has gone wrong on update! Failed with exception: $e"))
+          }
+        }
+      case None => Future.successful(NotFound("Player not found!"))
+    } recoverWith {
+      case _: JsResultException =>
+        Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
+      case e =>
+        Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
+    }
   }
 }

@@ -10,14 +10,14 @@ GET     /                           controllers.HomeController.index
 GET     /assets/*file                       controllers.Assets.versioned(path="/public", file: Asset)
 
 GET     /getPlayerById/:_id                 controllers.PlayerManagerController.getPlayerById(_id:String)
+GET     /getBalance/:_id                    controllers.PlayerManagerController.getBalanceById(_id:String)
 
-POST    /postPlayer                         controllers.PlayerManagerController.postNewPlayer
+POST    /addNewPlayer                       controllers.PlayerManagerController.addNewPlayer
 
-POST    /deletePlayerBody                   controllers.PlayerManagerController.deletePlayerByBody
 POST    /deletePlayerById/:_id              controllers.PlayerManagerController.deletePlayerById(_id:String)
-POST    /deletePlayerByName/:name           controllers.PlayerManagerController.deletePlayerByName(name:String)
 
 POST    /updatePlayerName/:_id/:name        controllers.PlayerManagerController.updatePlayerName(_id:String,name:String)
-POST    /updateValue/:id/:newValue          controllers.PlayerManagerController.updateValue(id:String,newValue:Int)
+
 POST    /increaseValue/:id/:increase        controllers.PlayerManagerController.increaseValue(id:String, increase:Int)
-POST    /decreaseValue/:id/:decrease        controllers.PlayerManagerController.decreaseValue(id:String, decrease:Int)
+POST    /decreaseValue/:id/:value           controllers.PlayerManagerController.decreaseValue(id:String, value:Int)
+
