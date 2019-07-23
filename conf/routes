@@ -14,7 +14,7 @@ GET     /getBalance/:_id                    controllers.PlayerManagerController.
 
 POST    /addNewPlayer                       controllers.PlayerManagerController.addNewPlayer
 
-POST    /deletePlayerById/:_id              controllers.PlayerManagerController.deletePlayerById(_id:String)
+POST    /deletePlayer/:_id                  controllers.PlayerManagerController.deletePlayerById(_id:String)
 
 POST    /updatePlayerName/:_id/:name        controllers.PlayerManagerController.updatePlayerName(_id:String,name:String)
 

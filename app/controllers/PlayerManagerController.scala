@@ -1,10 +1,8 @@
 package controllers
 
-import com.sun.media.sound.InvalidDataException
 import javax.inject.Inject
 import models.Player
-import play.api.data.validation.Invalid
-import play.api.libs.json.{JsObject, JsResultException, JsValue, Json, JsonValidationError}
+import play.api.libs.json.{JsObject, JsResultException, Json}
 import play.api.mvc._
 import play.modules.reactivemongo.ReactiveMongoApi
 import reactivemongo.api.WriteConcern
@@ -84,7 +82,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
       ) recoverWith {
         case _: JsResultException =>
           Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
-        case _: DatabaseException=>
+        case _: DatabaseException =>
           Future.successful(BadRequest(s"Could not parse Json to Player model. Duplicate key error!"))
         case e =>
           Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
@@ -92,9 +90,18 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
   }
 
   //POST
-  def deletePlayerById(id: String) = Action.async {
+  def deletePlayerById(_id: String) = Action.async {
+
     implicit request =>
-      collection.flatMap(_.delete.one(Json.obj("_id" -> id)).map(_ => Ok("Success")))
+      get(_id).flatMap {
+        case None => Future.successful(NotFound("Player not found"))
+        case Some(player) =>
+          collection.flatMap(
+            _.delete.one(Json.obj("_id" -> _id)).map(
+              _ => Ok("Success")
+            )
+          )
+      }
   }
 
   //POST
@@ -145,7 +152,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
   def increaseValue(_id: String, amount: Int): Action[AnyContent] = Action.async {
     get(_id).flatMap {
       case Some(player) =>
-        if (amount < 0)
+        if (amount <= 0)
           Future.successful(Ok("Minimum increase must be greater than zero"))
         else {
           collection.flatMap(_.update.one(
