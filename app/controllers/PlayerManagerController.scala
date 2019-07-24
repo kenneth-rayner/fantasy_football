@@ -1,22 +1,32 @@
 package controllers
 
+import java.time.LocalDateTime
+
 import javax.inject.Inject
-import models.Player
+import models.{Player, UserSession}
 import play.api.libs.json.{JsObject, JsResultException, JsString, Json}
 import play.api.mvc._
 import play.modules.reactivemongo.ReactiveMongoApi
 import reactivemongo.api.WriteConcern
-import reactivemongo.api.commands.FindAndModifyCommand
+import reactivemongo.api.commands.{FindAndModifyCommand, WriteResult}
+import reactivemongo.api.indexes.{Index, IndexType}
+import reactivemongo.bson.BSONDocument
 import reactivemongo.core.errors.DatabaseException
 import reactivemongo.play.json.ImplicitBSONHandlers.JsObjectDocumentWriter
 import reactivemongo.play.json.collection._
+import views.html.helper.options
 
 import scala.concurrent.{ExecutionContext, Future}
 
-
-
 class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: ReactiveMongoApi)
                                        (implicit ec: ExecutionContext) extends AbstractController(cc) {
+  private val index = Index(
+    key     = Seq("lastUpdated" -> IndexType.Ascending),
+    name    = Some("locks-index"),
+    options = BSONDocument("expireAfterSeconds" -> 900)
+  )
+  sessionCollection.map(_.indexesManager.ensure(index))
+
 
   private def findAndUpdate(collection: JSONCollection, selection: JsObject, modifier: JsObject): Future[FindAndModifyCommand.Result[collection.pack.type]] = {
     collection.findAndUpdate(
@@ -34,24 +44,57 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
     )
   }
 
-  private def collection: Future[JSONCollection] =
+  private def playerCollection: Future[JSONCollection] =
     mongo.database.map(_.collection[JSONCollection]("players"))
 
+  private def sessionCollection: Future[JSONCollection] =
+    mongo.database.map(_.collection[JSONCollection]("session"))
+
+  def createNewSession(session:UserSession)= {
+      sessionCollection.flatMap(
+        _.insert.one(session))
+  }
+  
+  def present(_id:String)= Action.async  {
+    implicit request =>
+
+      get(_id).flatMap(
+       player =>
+      if(player.isDefined){
+        getSesssion(_id).flatMap {
+
+          case Some(session) =>
+            deleteSessionById(_id).map(_ => Ok("Goodbye..."))
+          case None =>
+            createNewSession(UserSession(_id,LocalDateTime.now)).map(_ => Ok("Hello ..."))
+        }
+      } else {
+        Future.successful(BadRequest("playerNotFound"))
+
+      }
+      )
+  }
+
+//GET
   private def get(_id: String): Future[Option[Player]] =
-    collection.flatMap(_.find(
+    playerCollection.flatMap(_.find(
       Json.obj("_id" -> _id),
       None
     ).one[Player])
 
-  //GET
-  def getPlayerById(_id: String) = Action.async {
-    implicit request: Request[AnyContent] =>
+  private def getSesssion(_id: String): Future[Option[UserSession]] =
+    sessionCollection.flatMap(_.find(
+      Json.obj("_id" -> _id),
+      None
+    ).one[UserSession])
 
-      val getHeaders: Option[Seq[String]] = request.headers.toMap.get("security-key")
+  //GET
+  def getPlayerById(_id: String): Action[AnyContent] = Action.async{
+    implicit request: Request[AnyContent] =>
 
         get(_id).map {
           case Some(player) => Ok(Json.toJson(player))
-          case None => NotFound(s"$getHeaders")
+          case None => NotFound("Player not found")
         } recoverWith {
           case _: JsResultException =>
             Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
@@ -74,26 +117,10 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
           Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
       }
   }
-
-  def postSecurityNumber(_id:String, securityNumber:String) = Action.async {
-    val frank = Seq("_id" -> _id, "security-number" -> securityNumber)
-      collection.flatMap(
-        _.find(
-    Json.obj("$and" -> Json.toJsFieldJsValueWrapper(frank)),
-          None
-        ).one[String].map {
-          _=> Ok("yodel")
-        }
-      ) recoverWith {
-        case e => Future.successful(BadRequest(s"poops--> $e"))
-      }
-
-  }
-
   //POST
   def addNewPlayer = Action.async(parse.json) {
     implicit request =>
-      collection.flatMap(
+      playerCollection.flatMap(
         _.insert.one(request.body.as[Player]).map(
           _ => Ok("Success")
         )
@@ -106,7 +133,11 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
           Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
       }
   }
-
+  def deleteSessionById(_id:String): Future[WriteResult] ={
+      sessionCollection.flatMap(
+        _.delete.one(Json.obj("_id" -> _id))
+      )
+  }
   //POST
   def deletePlayerById(_id: String) = Action.async {
 
@@ -114,7 +145,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
       get(_id).flatMap {
         case None => Future.successful(NotFound("Player not found"))
         case Some(player) =>
-          collection.flatMap(
+          playerCollection.flatMap(
             _.delete.one(Json.obj("_id" -> _id)).map(
               _ => Ok("Success")
             )
@@ -124,7 +155,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
 
   //POST
   def updatePlayerName(_id: String, newName: String): Action[AnyContent] = Action.async {
-    collection.flatMap {
+    playerCollection.flatMap {
       result =>
 
         val selector: JsObject = Json.obj("_id" -> _id)
@@ -147,7 +178,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
         if (player.value < amount)
           Future.successful(Ok("balance not high enough"))
         else {
-          collection.flatMap(_.update.one(
+          playerCollection.flatMap(_.update.one(
             Json.obj("_id" -> _id),
             Json.obj("_id" -> player._id, "name" -> player.name, "value" -> (player.value - amount)))
           ).map {
@@ -173,7 +204,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
         if (amount <= 0)
           Future.successful(Ok("Minimum increase must be greater than zero"))
         else {
-          collection.flatMap(_.update.one(
+          playerCollection.flatMap(_.update.one(
             Json.obj("_id" -> _id),
             Json.obj("_id" -> player._id, "name" -> player.name, "value" -> (player.value + amount)))
           ).map {
