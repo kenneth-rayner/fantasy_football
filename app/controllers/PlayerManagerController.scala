@@ -122,7 +122,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
     implicit request: Request[AnyContent] =>
 
       get(_id.idNumber).map {
-        case Some(player) => Ok(Json.toJson(player.value))
+        case Some(player) => Ok(Json.toJson(player.balance))
         case None => NotFound("Player not found!")
       } recoverWith {
         case _: JsResultException =>
@@ -185,16 +185,16 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
   }
 
   //POST
-  def decreaseValue(_id: CardId, amount: Int): Action[AnyContent] = Action.async {
+  def decreaseBalance(_id: CardId, decrease: Int): Action[AnyContent] = Action.async {
     get(_id.idNumber).flatMap {
       case Some(player) =>
-        if (player.value < amount)
+        if (player.balance < decrease)
           Future.successful(Ok("balance not high enough"))
         else {
           playerCollection.flatMap(_.update.one(
             Json.obj("_id" -> _id.idNumber),
             Json.obj("_id" -> player._id, "name" -> player.name,"email" -> player.email,"mobileNumber" -> player.mobileNumber,
-          "value" -> (player.value - amount),"securityNumber" -> player.securityNumber))
+          "balance" -> (player.balance - decrease),"securityNumber" -> player.securityNumber))
           ).map {
             _ => Ok("Document updated!")
           }.recoverWith {
@@ -212,16 +212,16 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
   }
 
   //POST
-  def increaseValue(_id: CardId, amount: Int): Action[AnyContent] = Action.async {
+  def increaseBalance(_id: CardId, increase: Int): Action[AnyContent] = Action.async {
     get(_id.idNumber).flatMap {
       case Some(player) =>
-        if (amount <= 0)
+        if (increase <= 0)
           Future.successful(Ok("Minimum increase must be greater than zero"))
         else {
           playerCollection.flatMap(_.update.one(
             Json.obj("_id" -> _id.idNumber),
             Json.obj("_id" -> player._id, "name" -> player.name,"email" -> player.email,"mobileNumber" -> player.mobileNumber,
-            "value" -> (player.value + amount),"securityNumber" -> player.securityNumber))
+            "balance" -> (player.balance + increase),"securityNumber" -> player.securityNumber))
           ).map {
             _ => Ok("Document updated!")
           }.recoverWith {
