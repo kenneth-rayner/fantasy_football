@@ -19,7 +19,7 @@ POST  /deletePlayer/:_id                  controllers.PlayerManagerController.de
 POST  /updatePlayerName/:_id/:name        controllers.PlayerManagerController.updatePlayerName(_id:CardId,name:String)
 
 POST  /increaseBalance/:_id/:increase      controllers.PlayerManagerController.increaseBalance(_id:CardId, increase:Int)
-POST  /decreaseBalance/:_id/git statusssssssss:decrease       controllers.PlayerManagerController.decreaseBalance(_id:CardId, decrease:Int)
+POST  /decreaseBalance/:_id/:decrease       controllers.PlayerManagerController.decreaseBalance(_id:CardId, decrease:Int)
 
 
 GET   /present/:_id                       controllers.PlayerManagerController.present(_id:CardId)
