@@ -1,16 +1,15 @@
 package controllers
 
-import org.scalatestplus.play.PlaySpec
-import org.scalatestplus.play.guice.GuiceOneAppPerTest
-import play.api.test._
+import models.Player
+import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.{MustMatchers, WordSpec}
+import org.scalatestplus.mockito.MockitoSugar
 
-class PlayerManagerControllerSpec extends PlaySpec with GuiceOneAppPerTest with Injecting {
 
-  "PlayerManagerController" should {
 
-    ""  in{
-     ???
-    }
 
-    }
-}
+
+
+//class PlayerManagerControllerSpec extends WordSpec with MustMatchers with MockitoSugar  with ScalaFutures {
+
+//}
