@@ -3,7 +3,8 @@ package controllers
 import java.time.LocalDateTime
 
 import javax.inject.Inject
-import models.{Player, UserSession}
+import models.{CardId, Player, UserSession}
+import play.api.Configuration
 import play.api.libs.json.{JsObject, JsResultException, JsString, Json}
 import play.api.mvc._
 import play.modules.reactivemongo.ReactiveMongoApi
@@ -18,12 +19,14 @@ import views.html.helper.options
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: ReactiveMongoApi)
+class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: ReactiveMongoApi, config: Configuration)
                                        (implicit ec: ExecutionContext) extends AbstractController(cc) {
+
+  val ttl: Int = config.get[Int]("session.ttl")
   private val index = Index(
-    key     = Seq("lastUpdated" -> IndexType.Ascending),
-    name    = Some("locks-index"),
-    options = BSONDocument("expireAfterSeconds" -> 900)
+    key = Seq("lastUpdated" -> IndexType.Ascending),
+    name = Some("session-index"),
+    options = BSONDocument("expireAfterSeconds" -> ttl)
   )
   sessionCollection.map(_.indexesManager.ensure(index))
 
@@ -50,64 +53,75 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
   private def sessionCollection: Future[JSONCollection] =
     mongo.database.map(_.collection[JSONCollection]("session"))
 
-  def createNewSession(session:UserSession)= {
-      sessionCollection.flatMap(
-        _.insert.one(session))
+  def createNewSession(session: UserSession) = {
+    sessionCollection.flatMap(
+      _.insert.one(session))
   }
-  
-  def present(_id:String)= Action.async  {
+
+  def present(_id: CardId) = Action.async {
     implicit request =>
 
-      get(_id).flatMap(
-       player =>
-      if(player.isDefined){
-        getSesssion(_id).flatMap {
+      get(_id.idNumber).flatMap(
+        optionalPlayer =>
 
-          case Some(session) =>
-            deleteSessionById(_id).map(_ => Ok("Goodbye..."))
-          case None =>
-            createNewSession(UserSession(_id,LocalDateTime.now)).map(_ => Ok("Hello ..."))
-        }
-      } else {
-        Future.successful(BadRequest("playerNotFound"))
+          optionalPlayer.map {
+            player: Player =>
+              getSession(_id).flatMap {
 
-      }
+                case Some(session) =>
+                  deleteSessionById(_id).map(_ => Ok(s"Goodbye ${player.name}"))
+                case None =>
+                  createNewSession(UserSession(_id.idNumber, LocalDateTime.now)).map(_ => Ok(s"Hello ${player.name}"))
+              }
+          } getOrElse {
+            Future.successful(BadRequest("Please register"))
+
+          }
       )
   }
 
-//GET
+  //GET
   private def get(_id: String): Future[Option[Player]] =
     playerCollection.flatMap(_.find(
       Json.obj("_id" -> _id),
       None
     ).one[Player])
 
-  private def getSesssion(_id: String): Future[Option[UserSession]] =
+  //GET
+  private def getSession(_id: CardId): Future[Option[UserSession]] = {
     sessionCollection.flatMap(_.find(
-      Json.obj("_id" -> _id),
+      Json.obj("_id" -> _id.idNumber),
       None
     ).one[UserSession])
+  }
+
+  //POST
+  def deleteSessionById(_id: CardId): Future[WriteResult] = {
+    sessionCollection.flatMap(
+      _.delete.one(Json.obj("_id" -> _id.idNumber))
+    )
+  }
 
   //GET
-  def getPlayerById(_id: String): Action[AnyContent] = Action.async{
+  def getPlayerById(_id: CardId):Action[AnyContent] = Action.async {
     implicit request: Request[AnyContent] =>
 
-        get(_id).map {
-          case Some(player) => Ok(Json.toJson(player))
-          case None => NotFound("Player not found")
-        } recoverWith {
-          case _: JsResultException =>
-            Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
-          case e =>
-            Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
-        }
+      get(_id.idNumber).map {
+        case Some(player) => Ok(Json.toJson(player))
+        case None => NotFound("Player not found")
+      } recoverWith {
+        case _: JsResultException =>
+          Future.successful(BadRequest(s"Could not parse Json to Player model. Incorrect data!"))
+        case e =>
+          Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
       }
+  }
 
   //GET
-  def getBalanceById(_id: String) = Action.async {
+  def getBalanceById(_id: CardId) = Action.async {
     implicit request: Request[AnyContent] =>
 
-      get(_id).map {
+      get(_id.idNumber).map {
         case Some(player) => Ok(Json.toJson(player.value))
         case None => NotFound("Player not found!")
       } recoverWith {
@@ -117,6 +131,7 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
           Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
       }
   }
+
   //POST
   def addNewPlayer = Action.async(parse.json) {
     implicit request =>
@@ -133,20 +148,18 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
           Future.successful(BadRequest(s"Something has gone wrong with the following exception: $e"))
       }
   }
-  def deleteSessionById(_id:String): Future[WriteResult] ={
-      sessionCollection.flatMap(
-        _.delete.one(Json.obj("_id" -> _id))
-      )
-  }
+
+
+
   //POST
-  def deletePlayerById(_id: String) = Action.async {
+  def deletePlayerById(_id: CardId) = Action.async {
 
     implicit request =>
-      get(_id).flatMap {
+      get(_id.idNumber).flatMap {
         case None => Future.successful(NotFound("Player not found"))
         case Some(player) =>
           playerCollection.flatMap(
-            _.delete.one(Json.obj("_id" -> _id)).map(
+            _.delete.one(Json.obj("_id" -> _id.idNumber)).map(
               _ => Ok("Success")
             )
           )
@@ -154,11 +167,11 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
   }
 
   //POST
-  def updatePlayerName(_id: String, newName: String): Action[AnyContent] = Action.async {
+  def updatePlayerName(_id: CardId, newName: String): Action[AnyContent] = Action.async {
     playerCollection.flatMap {
       result =>
 
-        val selector: JsObject = Json.obj("_id" -> _id)
+        val selector: JsObject = Json.obj("_id" -> _id.idNumber)
         val modifier: JsObject = Json.obj("$set" -> Json.obj("name" -> newName))
         val newUpdate: Future[Option[Player]] = findAndUpdate(result, selector, modifier).map(_.result[Player])
 
@@ -172,15 +185,16 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
   }
 
   //POST
-  def decreaseValue(_id: String, amount: Int): Action[AnyContent] = Action.async {
-    get(_id).flatMap {
+  def decreaseValue(_id: CardId, amount: Int): Action[AnyContent] = Action.async {
+    get(_id.idNumber).flatMap {
       case Some(player) =>
         if (player.value < amount)
           Future.successful(Ok("balance not high enough"))
         else {
           playerCollection.flatMap(_.update.one(
-            Json.obj("_id" -> _id),
-            Json.obj("_id" -> player._id, "name" -> player.name, "value" -> (player.value - amount)))
+            Json.obj("_id" -> _id.idNumber),
+            Json.obj("_id" -> player._id, "name" -> player.name,"email" -> player.email,"mobileNumber" -> player.mobileNumber,
+          "value" -> (player.value - amount),"securityNumber" -> player.securityNumber))
           ).map {
             _ => Ok("Document updated!")
           }.recoverWith {
@@ -198,15 +212,16 @@ class PlayerManagerController @Inject()(cc: ControllerComponents, mongo: Reactiv
   }
 
   //POST
-  def increaseValue(_id: String, amount: Int): Action[AnyContent] = Action.async {
-    get(_id).flatMap {
+  def increaseValue(_id: CardId, amount: Int): Action[AnyContent] = Action.async {
+    get(_id.idNumber).flatMap {
       case Some(player) =>
         if (amount <= 0)
           Future.successful(Ok("Minimum increase must be greater than zero"))
         else {
           playerCollection.flatMap(_.update.one(
-            Json.obj("_id" -> _id),
-            Json.obj("_id" -> player._id, "name" -> player.name, "value" -> (player.value + amount)))
+            Json.obj("_id" -> _id.idNumber),
+            Json.obj("_id" -> player._id, "name" -> player.name,"email" -> player.email,"mobileNumber" -> player.mobileNumber,
+            "value" -> (player.value + amount),"securityNumber" -> player.securityNumber))
           ).map {
             _ => Ok("Document updated!")
           }.recoverWith {

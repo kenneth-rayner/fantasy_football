@@ -1,3 +1,5 @@
+import play.sbt.routes.RoutesKeys
+
 name := """fantasy_football"""
 organization := "com.example"
 
@@ -14,3 +16,5 @@ libraryDependencies += "org.scalatestplus.play" %% "scalatestplus-play" % "4.0.3
 routesGenerator := InjectedRoutesGenerator
 
 libraryDependencies += "org.reactivemongo" %% "play2-reactivemongo" % "0.18.1-play27"
+
+RoutesKeys.routesImport += "models.CardId"
