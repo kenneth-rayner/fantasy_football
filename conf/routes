@@ -8,17 +8,17 @@
 # Map static resources from the /public folder to the /assets URL path
 GET   /assets/*file                       controllers.Assets.versioned(path="/public", file: Asset)
 
-#GET   /present/:_id                       controllers.PlayerManagerController.present(_id:CardId)
+GET   /present/:_id                       controllers.PlayerManagerController.present(_id:CardId)
+GET   /getPlayer/:_id                     controllers.PlayerManagerController.getPlayerById(_id:CardId)
+GET   /getBalance/:_id                    controllers.PlayerManagerController.getBalance(_id:CardId)
 
-GET   /getPlayerById/:_id                 controllers.PlayerManagerController.getPlayerById(_id:CardId)
-#GET   /getBalance/:_id                    controllers.PlayerManagerController.getBalanceById(_id:CardId)
+
 
 POST  /addNewPlayer                       controllers.PlayerManagerController.addNewPlayer
 POST  /deletePlayer/:_id                  controllers.PlayerManagerController.deletePlayer(_id:CardId)
+POST  /updateName/:_id/:newData           controllers.PlayerManagerController.updatePlayerName(_id:CardId,newData:String)
 
-#POST  /updatePlayerName/:_id/:name        controllers.PlayerManagerController.updatePlayerName(_id:CardId,name:String)
-
-#POST  /increaseBalance/:_id/:increase      controllers.PlayerManagerController.increaseBalance(_id:CardId, increase:Int)
-#POST  /decreaseBalance/:_id/:decrease       controllers.PlayerManagerController.decreaseBalance(_id:CardId, decrease:Int)
+POST  /increaseBalance/:_id/:increase    controllers.PlayerManagerController.increaseBalance(_id:CardId, increase:Int)
+POST  /decreaseBalance/:_id/:decrease    controllers.PlayerManagerController.decreaseBalance(_id:CardId, decrease:Int)
 
 
